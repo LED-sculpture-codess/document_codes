@@ -1,0 +1,113 @@
+//MOSI    - pin 11     pin 51
+//MISO    - pin 12     pin 50
+//CLK(sck)- pin 13     pin 52
+//CS      - pin 4      pin 53
+//above for uno check for mega
+
+
+#include <SD.h>
+//#include <SPI.h>
+
+const byte data_pin = 31;
+const byte clk_pin = 30;
+volatile  byte latch_pin = 29;
+volatile  byte read_buff = 1;
+volatile  byte write_buff = 0;
+volatile  byte data_read = 0;
+
+File data_file;
+
+byte char_data[22];
+volatile byte buff_data[2][11];  //one for reading one for writing  
+volatile byte glow = 1;
+void setup() {
+//  pinMode(13,OUTPUT);
+  
+  Serial.begin(9600);
+  
+    //timer interrupt code setup
+  noInterrupts();
+  
+  TCCR2A = 0;
+  TCCR1B = 0;    //16 bit timer register TCCR1 timer 1
+  TCNT1 = 0;     //initisialising all required timer 1 registers
+  
+  OCR1A = 6250; // compare match register 16MHz/8/320Hz
+  TCCR1B |= (1 << WGM12); // CTC mode
+  TCCR1B |= (1 << CS11); // 8 prescaler
+  TIMSK1 |= (1 << OCIE1A); // enable timer compare interrupt
+//  Serial.println(OCIE1A);
+//  Serial.println(WGM12);
+  interrupts(); // enable all interrupts
+  
+  //SD card intialisation setup setup
+  pinMode(53,OUTPUT);    //4 is for uno for mega change this value
+  digitalWrite(53,HIGH); //4 is for uno for mega change this value
+  Serial.println("Initializing SD card...");
+    
+  while (!Serial){
+    ;
+  }
+  
+  if (!SD.begin(53)) {
+    Serial.println("initialization failed!");
+    return;
+  }
+  Serial.println("initialization done.");
+  
+  data_file = SD.open("spectum.txt");
+  
+}
+
+
+ISR(TIMER1_COMPA_vect){  //ISR for the timer interrupt 
+  
+  noInterrupts();
+//  Serial.println("IH");
+//  if(data_read){
+//    for(byte i = 0;i < 11;i++){
+//      shiftOut(data_pin,clk_pin,LSBFIRST,buff_data[read_buff]);
+//    } 
+    glow =  !glow;
+    digitalWrite(13,glow);
+//    Serial.println(glow);
+//    digitalWrite(latch_pin,LOW);
+//    digitalWrite(latch_pin,HIGH);
+//  }
+  interrupts();
+
+}
+
+
+void loop() {
+  
+    data_file.read(char_data,22);
+    c2i(char_data,buff_data[read_buff]);
+    read_buff = !read_buff;
+    write_buff = !write_buff;
+    data_read = 1;
+}
+
+void c2i(char *s, byte *data)  //converts char array to byte array
+{
+ char c,d;
+ byte t;
+ for(byte i = 0;i < 11;i++){
+     c = *s;
+     d = *(++s);
+     if((c >= '0') & (c <= '9')){
+      *data = byte(c -'0');
+     } 
+     else if((c >= 'A') & (c <= 'F')){
+      *data =  byte(c - 'A') + 10;
+     }
+     if((d >= '0') & (d <= '9')){
+      *data = ((*data) << 4) + byte(d - '0');   //becareful of precedence of operators
+     }
+     else if((d >= 'A') & (d <= 'F')){
+      *data = ((*data) << 4) + byte(d - 'A') + 10;
+     }
+     s++;
+     data++;
+ }
+}
