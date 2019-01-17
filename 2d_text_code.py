@@ -1,5 +1,5 @@
 #this for 2d mesh data
-
+#for conversion of 2d numpy data to data to be sent to shift registers
 def file_size(data_file) :
         import os
         statinfo = os.stat(data_file)
