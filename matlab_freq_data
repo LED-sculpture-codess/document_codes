@@ -1,0 +1,96 @@
+clear
+fid = fopen('data.txt','w');
+file_name = 'karma.wav';
+%y is the audio data in time domain
+%Fs is the sampling frequency,1/time between two samples
+[y,Fs] = audioread(file_name);
+%samp_period time period at which we are samping
+len = length(y);
+samp_period = 0.05;
+samp_freq =1/samp_period;
+step = samp_period*Fs;
+clear y Fs
+klow=1;
+y_index = 1;
+net = zeros([round(len/step) 12]);
+for kup = step:step:len
+    clf; %clears the frame
+    sample = [klow, kup];
+    klow = kup;
+    [y,Fs] = audioread(file_name,sample);
+    Y = fft(y);
+    Y = abs(Y);
+    %disp(Y');
+    l = length(Y);
+    Y = Y(1:(round(l/2)+1)); %round rounds the data to nearest integer 
+    %f is frequencies obtained in fft
+    f = linspace(0,1,(l/2)+1)*Fs/2;  
+    x_index = 1;
+    for higher = [1 2 3 4 5 7 11 15 23 33 48 106 ]         
+        if higher == 1
+                lower = 1;
+        end
+        lower = higher;
+        net(y_index,x_index) = max(Y(lower:higher));
+        x_index = x_index + 1;
+    end
+    y_index = y_index + 1;
+end
+
+threshold = 100;
+binary_data = zeros(16*size(net,1),size(net,2));
+
+for y = 1 : size(net,1)
+    for x = 1 : size(net,2)
+        for i = 1 : 16
+             round(net(y,x)*16/100) >= i
+                binary_data(16*(y-1) + i ,x) = 1;
+            end
+        end
+    end
+end
+
+hex_data = zeros(16*size(net,1),size(net,2)/4);
+
+for y = 1 : size(hex_data,1)
+    for x = 1 : size(hex_data,2)
+        hex_data(y,x) = bi2int(binary_data(y,x:(x+3))); 
+    end
+end
+
+ for l = 1:1200 
+    for m = 1 : 16
+            for n = 1 : 6
+                for c = 1 : 3
+                    fprintf(fid,'%X',hex_data(l,c));
+                end
+            end
+            if m <= 4
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',bitxor(bitsll(1,m-1),1));
+            elseif  m <= 8
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',bitxor(bitsll(1,m-5),1));
+                fprintf(fid,'%X',15);
+            elseif m <= 12
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',bitxor(bitsll(1,m-9),1));
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',15);
+            else
+                fprintf(fid,'%X',bitsll(1,m-13));
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',15);
+                fprintf(fid,'%X',15);
+            end
+        end
+ end
+function y = bi2int(x)
+    if (length(x) ~= 4)
+        error('vector length should be 4')
+    end
+    y = x*[8 4 2 1]';
+end
